@@ -172,8 +172,8 @@ export default function PlatformsPage() {
             <TableRow>
               <TableHead className="w-12">ID</TableHead>
               <TableHead>平台名称</TableHead>
-              <TableHead className="text-center">状态</TableHead>
               <TableHead>路由规则</TableHead>
+              <TableHead className="text-center">状态</TableHead>
               <TableHead>关联节点</TableHead>
               <TableHead>更新时间</TableHead>
               <TableHead className="text-right">操作</TableHead>
@@ -202,11 +202,6 @@ export default function PlatformsPage() {
 <TableRow key={p.id}>
                   <TableCell className="text-muted-foreground text-xs">{p.id}</TableCell>
                   <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant={p.status === 1 ? "default" : "outline"}>
-                      {p.status === 1 ? "开启" : "关闭"}
-                    </Badge>
-                  </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1 max-w-[300px]">
                         {rules.slice(0, 1).map((r) => (
@@ -218,6 +213,11 @@ export default function PlatformsPage() {
                         {rules.length === 0 && <span className="text-muted-foreground text-xs">无规则</span>}
                       </div>
                     </TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant={p.status === 1 ? "default" : "outline"}>
+                      {p.status === 1 ? "开启" : "关闭"}
+                    </Badge>
+                  </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1 max-w-[200px]">
                         {p.nodes && p.nodes.length > 0 ? (
