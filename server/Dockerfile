@@ -13,21 +13,28 @@
 #
 # config.yml 里 database.path 用默认的 ./data/database.db 就能对上挂载点。
 
-FROM node:22-alpine AS web
+# 前两个阶段都在 $BUILDPLATFORM 上原生跑,不进 qemu:它们只产出平台无关的东西
+# (前端资源、静态链接的二进制)。目标架构靠 GOARCH 交叉编译拿到 ——
+# 在 qemu 里模拟 arm64 跑 go build 会慢几十倍。
+FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 WORKDIR /src
 COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/ ./
 # 前端产物填进嵌入目录(仓库里这里只有 .gitkeep)
 COPY --from=web /src/web/dist/ ./internal/static/web/
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
+# TARGETOS/TARGETARCH 由 buildx 注入;CGO 关着,不需要目标平台的工具链
+ARG TARGETOS TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+      go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server \
+ && echo "built for ${TARGETOS}/${TARGETARCH}"
 
 FROM alpine:3
 RUN apk add --no-cache ca-certificates tzdata
