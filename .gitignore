@@ -1,0 +1,30 @@
+# Go
+/server/server
+/agent/agent
+*.exe
+*.test
+*.out
+
+# SQLite data
+/server/data/*.db
+/server/data/*.db-*
+
+# Local config (keep *.example.yml)
+/server/config.yml
+/agent/config.yml
+
+# Node / Vite
+/web/node_modules/
+/web/dist/
+/web/.vite/
+
+# 嵌入 Server 的前端构建产物(由 scripts/build.sh 生成)
+# 注意:路径是 internal/static(不是旧的 internal/web/dist);
+# 保留 static.go 与占位 index.html,只忽略带 hash 的资源与拷贝来的图标
+/server/internal/static/assets/
+/server/internal/static/favicon.png
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

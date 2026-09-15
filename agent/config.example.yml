@@ -1,0 +1,19 @@
+# Agent 配置示例。复制为 config.yml 后按模式二选一填写。
+# 详见 需求文档.md 4.4 配置示例。
+
+# ============ node 模式(解锁节点)============
+api: https://panel.example.com
+mode: node
+token: xxxxxxxx                  # 节点专属 Token(节点表里那个)
+scheduler: "0 45 * * * *"        # cron(6 段含秒)定时检测+上报;此例=每小时 45 分 00 秒
+# 检测范围固定为全部平台,无需配置
+
+# ============ client 模式(落地节点)============
+# api: https://panel.example.com
+# mode: client
+# token: xxxxxxxx                # 全局只读 Token
+# scheduler: "0 45 * * * *"      # cron(6 段含秒)定时本地检测+拉取+生成
+# stack: default                 # 生成配置的协议栈:default | 4 | 6(仅 client 生效)
+# render:                        # 渲染生成配置文件的目标
+#   type: soga                   # 仅 soga(XrayR 已废弃)
+#   path: /etc/soga/routes.toml
