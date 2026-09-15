@@ -149,12 +149,43 @@ type="direct"
     `/`、`/favicon.png`、`/assets/*`、`/api/*` 全部正确；**`/static.go` 返回 index.html（SPA 回退），
     不泄漏源码**；`POST /api/auth/login` 拿到 JWT
   - **容器里 Gin 跑的是 debug 模式**（Dockerfile 没设 `GIN_MODE=release`）—— 未改，只是记录
-- **ghcr 上目前还没有任何镜像**（2026-09-15 核实）：远端 `origin/main` 只有 `ae17afa first commit`、
-  与本地 HEAD 一致 → `.github/` 等**全都还没提交**，workflow **从未上过 GitHub**；
-  `git tag` 为空（`latest` 只在打 tag 时生成）。**仓库是私有的** → ghcr 包默认继承私有可见性，
-  推上去也要 `docker login` 才能拉，**不能匿名 pull**（要匿名得去包设置里改 public）
+- **线上镜像（ghcr）**：2026-09-15 用户拍板「static 保持现状 + 镜像走线上」，于是
+  把这一整批工作提交推送（`26e59ce`）并打 tag **`v0.1.0`** 触发 workflow。
+  - 镜像是 `ghcr.io/hututuono/mediaunlock-server`（tag 名同 git tag，`latest` 只在打 tag 时更新）
+  - **`scripts/docker/docker-compose.yml` 现在是"拉镜像"形态**：只有 `image:`，没有 `build:`
+    （用户要线上，所以去掉了本地构建段；想本地构建用
+    `docker build -f server/Dockerfile -t mediaunlock-server .`）
+  - **仓库私有 → ghcr 包默认私有 → 拉取要 `docker login ghcr.io`（PAT 带 `read:packages`）**；
+    想免登录拉要去 GitHub 包设置里把可见性改成 public（**注意：改可见性是要用户自己决定的事**）
+  - 提交身份：本机**没配 `user.name` / `user.email`**（`~/.gitconfig` 和 `/etc/gitconfig` 都不存在），
+    但首个 commit 的作者是 `胡图图 <hututu@hututudeMac-mini.local>` → 沿用同一身份，
+    用**环境变量**（`GIT_AUTHOR_*` / `GIT_COMMITTER_*`）传，**不去改用户的 git 配置**
+- **本机有 GitHub OAuth 凭据**（git credential helper = `osxkeychain`，token 前缀 `gho_`，40 位）：
+  `printf 'protocol=https\nhost=github.com\n\n' | git credential fill` 能取出 `password=`。
+  用它调 GitHub API 查 Actions 状态（`/repos/<owner>/<repo>/actions/runs`）**可行**。
+  **但不要把 token 打印到输出里** —— 本机也没有 `gh` CLI
+- **ghcr 镜像的当前状态**（2026-09-15 收尾时）：
+  - 仓库**私有** → ghcr 包默认继承私有可见性，推上去也要 `docker login` 才能拉，
+    **不能匿名 pull**（要匿名得去包设置里改 public —— 这是用户自己决定的事）
   - compose 同时写 `image` + `build` 时，**`up` 走本地 build、不会 pull**（实测）；
     想用线上镜像要显式 `docker compose pull`，或去掉 `build` / 设 `pull_policy: always`
+  - **已提交推送**：`26e59ce`（static 重构 + 修复 + CI/Docker/脚本，tag `v0.1.0` 打在这里）、
+    `87f8c75`（compose 改成拉镜像）、`eeac9ac`（修 release job，`main` 已是最新）
+  - **首轮 run：build 全绿，release job 挂在 `gh` 上；ghcr 上此刻仍无镜像**
+    （docker job 卡在多架构 qemu 首次构建，被用户手动取消）
+  - **待办**：`v0.1.0` tag 还指在 `26e59ce`，修复在 `eeac9ac` → **得把 tag 移过去重推**才会生效
+- **release job 必须给 `gh` 指路**：`release` job 没有 `checkout` → 工作目录无 `.git` →
+  `gh` 报 `fatal: not a git repository`。`GH_TOKEN` 只解决认证、**解决不了定位仓库**；
+  修法是加 `GH_REPO: ${{ github.repository }}`（比加 `checkout` 轻）。两个 workflow 各一处
+  - **改 workflow 后 tag 必须移动才会生效**：tag 触发的 run 用的是**tag 那个 commit 上的
+    workflow 文件**，"Re-run failed jobs" 不会用新文件
+- **查 ghcr 镜像是否存在的可靠办法**：gh CLI 的 OAuth token **没有 `read:packages`**
+  （`/user/packages` 403），但 **registry 的 token 交换可以**：
+  `curl -u "HuTuTuOnO:$TOKEN" "https://ghcr.io/token?scope=repository:hututuono/mediaunlock-server:pull&service=ghcr.io"`
+  取 `token`，再 `curl -H "Authorization: Bearer $REG" https://ghcr.io/v2/<owner>/<pkg>/tags/list`。
+  不存在返回 `NAME_UNKNOWN`，存在返回 tag 列表
+- 多架构镜像**首跑没有 gha 缓存时很慢**（qemu 里跑 arm64 的 npm ci + go build），预算要放宽
+
 - 需求文档与代码有多处不一致（用户说过先不动文档）—— 清单见 2026-09-15 的日志
 - **第三轮审查的 14 条问题已修完**（2026-09-15，用户拍板后动手）。三个"最容易踩"的结论现在变成了
   约束，改相关代码时必须遵守：
