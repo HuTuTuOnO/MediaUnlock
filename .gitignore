@@ -26,3 +26,6 @@
 .DS_Store
 .idea/
 .vscode/
+
+# 助手的工作笔记,留在本地就够了
+.workbuddy-ai/
