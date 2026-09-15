@@ -39,6 +39,8 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 FROM alpine:3
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
+# 否则 Gin 走 debug 模式,启动时把全部路由和 handler 包路径打进日志(本地 go run 不受影响)
+ENV GIN_MODE=release
 COPY --from=build /out/server ./server
 COPY server/config.example.yml ./config.example.yml
 EXPOSE 8080
