@@ -70,9 +70,11 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # 这个 job 没有 checkout,工作目录里没有 .git,gh 认不出仓库,得用 GH_REPO 指路
       - name: 附到 Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           # agent 与 server 两个 workflow 会同时跑,可能同时 create —— 有一边失败不算错
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
