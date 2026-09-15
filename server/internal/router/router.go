@@ -3,6 +3,8 @@ package router
 // 路由装配:把各 handler 挂到 Gin 引擎上。main 与测试共用。
 
 import (
+	"log/slog"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -16,7 +18,13 @@ import (
 func New(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	h := handlers.New(db, cfg)
 	r := gin.New()
-	r.Use(gin.Recovery())
+	// 只信本机回环:非本机来的请求不采信 X-Forwarded-For,否则日志里的 IP 客户端能随便填。
+	// 反代不在本机时(如宿主 nginx 转发进容器),得把它的地址加进来。
+	if err := r.SetTrustedProxies([]string{"127.0.0.1", "::1"}); err != nil {
+		slog.Warn("设置可信代理失败", "err", err)
+	}
+	// AccessLog 放外层,Recovery 恢复出的 500 也能被记到
+	r.Use(middleware.AccessLog(), gin.Recovery())
 
 	api := r.Group("/api")
 	{

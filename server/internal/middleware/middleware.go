@@ -1,12 +1,14 @@
 package middleware
 
-// 三套鉴权中间件:
+// 中间件:
 //   JWTAuth         —— 管理端 Web,Authorization: Bearer <JWT>
 //   NodeTokenAuth   —— Agent node 模式,Token: <nodes.token>
 //   ClientTokenAuth —— Agent client 模式,Token: <settings.token>
+//   AccessLog       —— 每条请求打一行,只记路径不记 query
 
 import (
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -110,5 +112,21 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		}
 		c.Set(CtxUserID, claims.UserID)
 		c.Next()
+	}
+}
+
+// AccessLog 每条请求打一行(方法/路径/状态码/耗时/客户端 IP)。
+// 不记 query —— token 历来有走查询参数的用法,记下来等于把凭据写进日志。
+func AccessLog() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		slog.Info("请求",
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"status", c.Writer.Status(),
+			"dur", time.Since(start),
+			"ip", c.ClientIP(),
+		)
 	}
 }
