@@ -268,3 +268,25 @@ func TestNodeTypeWhitelist(t *testing.T) {
 		t.Fatalf("update to invalid type want 400, got %d", w.Code)
 	}
 }
+
+// 创建时显式传 status=0 要落库为 0。
+// 模型上带 gorm:"default:1" 时 GORM 会把零值替换成默认值,「关闭」就建不出来。
+func TestCreateNodeDisabled(t *testing.T) {
+	r, _, _ := setup(t)
+	tok := tokenFor(t, r, "admin", "testpass")
+
+	w := do(t, r, http.MethodPost, "/api/nodes", tok, map[string]any{
+		"name": "JP1", "alias": "jp1", "type": "socks5", "host": "1.2.3.4", "port": 1080,
+		"status": models.StatusDisabled,
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create want 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Node models.Node `json:"node"`
+	}
+	decodeData(t, w, &created)
+	if created.Node.Status != models.StatusDisabled {
+		t.Fatalf("create with status=0 should stay disabled, got %d", created.Node.Status)
+	}
+}

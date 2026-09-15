@@ -114,3 +114,22 @@ func TestPlatformListSearch(t *testing.T) {
 		t.Fatalf("no search want 2, got %d", got.Total)
 	}
 }
+
+// 创建时显式传 status=0 要落库为 0。
+// 模型上带 gorm:"default:1" 时 GORM 会把零值替换成默认值,「关闭」就建不出来。
+func TestCreatePlatformDisabled(t *testing.T) {
+	r, _, _ := setup(t)
+	tok := tokenFor(t, r, "admin", "testpass")
+
+	w := do(t, r, http.MethodPost, "/api/platforms", tok, map[string]any{
+		"name": "Netflix", "rules": "domain:netflix.com", "status": models.StatusDisabled,
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create want 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var p models.Platform
+	decodeData(t, w, &p)
+	if p.Status != models.StatusDisabled {
+		t.Fatalf("create with status=0 should stay disabled, got %d", p.Status)
+	}
+}

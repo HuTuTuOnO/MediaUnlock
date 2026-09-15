@@ -6,7 +6,8 @@ package models
 
 import "time"
 
-// 状态枚举(节点 / 平台通用)
+// 状态枚举(节点 / 平台通用)。字段上不要加 gorm:"default:1" ——
+// 带 DB 默认值的字段,GORM 会把零值替换成默认值,「关闭」就建不出来。
 const (
 	StatusDisabled = 0 // 禁用
 	StatusEnabled  = 1 // 启用
@@ -52,7 +53,7 @@ type Node struct {
 	Name   string `json:"name"`                              // 展示名称
 	Alias  string `gorm:"uniqueIndex;not null" json:"alias"` // 唯一,业务引用键
 	Type   string `json:"type"`                              // socks5 / http
-	Status int    `gorm:"default:1" json:"status"`           // 1=启用 0=禁用
+	Status int    `json:"status"`                            // 1=启用 0=禁用
 	Host   string `json:"host"`                              // 域名或 IP,管理员手填
 	Port   int    `json:"port"`
 	Value1 string `json:"value1"` // 账号(可空)
@@ -77,7 +78,7 @@ type Platform struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Name      string    `gorm:"uniqueIndex;not null" json:"name"` // 与 MediaUnlockTest 检测名一一对应
 	Rules     string    `json:"rules"`                            // 分流域名/路由(json/string),非检测规则
-	Status    int       `gorm:"default:1" json:"status"`          // 1=启用 0=禁用
+	Status    int       `json:"status"`                           // 1=启用 0=禁用
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
