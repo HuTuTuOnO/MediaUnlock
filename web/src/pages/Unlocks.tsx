@@ -388,28 +388,30 @@ export default function UnlocksPage() {
               </>
             )}
 
-            {/* 无限滚动哨兵 */}
-            <div
-              ref={sentinelRef}
-              className="flex items-center justify-center gap-2 border-t px-6 py-3 text-sm text-muted-foreground"
-            >
-              {loading && platforms.length > 0 ? (
-                <>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  加载中...
-                </>
-              ) : hasMore ? (
-                <button
-                  type="button"
-                  className="underline underline-offset-4 hover:text-foreground"
-                  onClick={() => void loadMore()}
-                >
-                  加载更多
-                </button>
-              ) : platforms.length > 0 ? (
-                "已经到底了"
-              ) : null}
-            </div>
+            {/* 无限滚动哨兵。没有平台时整块不渲染,否则 border-t 会在空状态下面留一条空线 */}
+            {platforms.length > 0 && (
+              <div
+                ref={sentinelRef}
+                className="flex items-center justify-center gap-2 border-t px-6 py-3 text-sm text-muted-foreground"
+              >
+                {loading ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    加载中...
+                  </>
+                ) : hasMore ? (
+                  <button
+                    type="button"
+                    className="underline underline-offset-4 hover:text-foreground"
+                    onClick={() => void loadMore()}
+                  >
+                    加载更多
+                  </button>
+                ) : (
+                  "已经到底了"
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
