@@ -1,6 +1,7 @@
 package client
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -190,7 +191,31 @@ func TestWriteFileKeepsMode(t *testing.T) {
 	if fi.Mode().Perm() != 0o600 {
 		t.Errorf("权限 = %v, want 0600(应沿用原文件)", fi.Mode().Perm())
 	}
-	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
-		t.Error("临时文件应已 rename,不该留下")
+}
+
+// 必须原地覆盖:写完后从"写入前打开的 fd"里能读到新内容。
+// 改成"临时文件 + rename"的话,旧 fd 还指着被换掉的 inode,读到的会是旧内容 ——
+// 那样 soga 的 inotify watch 会随旧 inode 一起被内核摘掉,之后再也感知不到配置更新。
+func TestWriteFileWritesInPlace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "routes.toml")
+	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	if err := writeFile(path, []byte("brand new content")); err != nil {
+		t.Fatalf("writeFile: %v", err)
+	}
+
+	got, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "brand new content" {
+		t.Errorf("旧 fd 读到 %q, want brand new content(说明 inode 被换掉了)", got)
 	}
 }

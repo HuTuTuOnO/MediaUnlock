@@ -96,24 +96,17 @@ func renderSoga(a assignment) ([]byte, error) {
 	return []byte(b.String()), nil
 }
 
-// writeFile 原子写入:先写同目录临时文件再 rename —— soga 在监听这个文件,
-// 直接覆盖可能被读到写了一半的内容。沿用原文件权限,新建时 0644。
+// writeFile 原地覆盖写入。不要改成"临时文件 + rename"——soga 用 inotify 监听这个文件,
+// watch 绑在 inode 上,rename 换掉 inode 会让内核摘掉 watch,之后怎么改都感知不到。
+// 沿用原文件权限,新建时 0644。
 func writeFile(path string, b []byte) error {
 	mode := os.FileMode(0o644)
 	if fi, err := os.Stat(path); err == nil {
 		mode = fi.Mode().Perm()
 	}
-	// 目标目录可能还不存在(如 /etc/soga),临时文件也写在同一目录里
+	// 目标目录可能还不存在(如 /etc/soga)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, mode); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return nil
+	return os.WriteFile(path, b, mode)
 }
