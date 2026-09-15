@@ -17,7 +17,7 @@ import {
   DialogHeader, DialogTitle
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/toast-context"
-import { cn } from "@/lib/utils"
+import { cn, fmtTime } from "@/lib/utils"
 
 const EMPTY_FORM = { name: "", rules: "", status: 1 }
 
@@ -172,6 +172,7 @@ export default function PlatformsPage() {
             <TableRow>
               <TableHead className="w-12">ID</TableHead>
               <TableHead>平台名称</TableHead>
+              <TableHead className="text-center">状态</TableHead>
               <TableHead>路由规则</TableHead>
               <TableHead>关联节点</TableHead>
               <TableHead>更新时间</TableHead>
@@ -181,7 +182,7 @@ export default function PlatformsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                   <div className="flex items-center justify-center gap-2">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     加载中...
@@ -190,7 +191,7 @@ export default function PlatformsPage() {
               </TableRow>
             ) : platforms.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                   暂无数据
                 </TableCell>
               </TableRow>
@@ -200,13 +201,11 @@ export default function PlatformsPage() {
                 return (
 <TableRow key={p.id}>
                   <TableCell className="text-muted-foreground text-xs">{p.id}</TableCell>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <span>{p.name}</span>
-                      {p.status === 0 && (
-                        <Badge variant="outline" className="text-xs">已关闭</Badge>
-                      )}
-                    </div>
+                  <TableCell className="font-medium">{p.name}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant={p.status === 1 ? "default" : "outline"}>
+                      {p.status === 1 ? "开启" : "关闭"}
+                    </Badge>
                   </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1 max-w-[300px]">
@@ -235,7 +234,7 @@ export default function PlatformsPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{p.updated_at}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{fmtTime(p.updated_at)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button
@@ -289,9 +288,9 @@ export default function PlatformsPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2 font-medium text-foreground">
                     <span>{p.name}</span>
-                    {p.status === 0 && (
-                      <Badge variant="outline" className="text-xs">已关闭</Badge>
-                    )}
+                    <Badge variant={p.status === 1 ? "default" : "outline"}>
+                      {p.status === 1 ? "开启" : "关闭"}
+                    </Badge>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openDetail(p)}>
