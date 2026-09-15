@@ -27,6 +27,12 @@ func NewRunner(cfg *config.Config) *Runner {
 // Run 执行一轮。
 func (r *Runner) Run(ctx context.Context) error {
 	local := detect.All(ctx)
+	// ctx 已取消时每项都是"网络错误","本机已解锁"集合会变空,生成出来的配置会把所有平台
+	// 都分流出去。放弃本轮。
+	if ctx.Err() != nil {
+		slog.Warn("检测被取消,跳过本轮生成", "err", ctx.Err())
+		return nil
+	}
 
 	data, err := r.api.Unlocked()
 	if err != nil {

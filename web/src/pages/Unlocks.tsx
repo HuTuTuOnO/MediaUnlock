@@ -13,7 +13,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import { useToast } from "@/components/ui/toast-context"
-import { cn } from "@/lib/utils"
+import { cn, fmtTime } from "@/lib/utils"
 
 // 状态 → 文案 / 格子颜色 / 徽章配色(见 需求文档 3.3 unlocks)
 const STATUS_META: Record<string, { label: string; square: string; badge: string }> = {
@@ -37,15 +37,6 @@ function metaOf(status: number) {
       badge: "border-transparent bg-muted text-muted-foreground",
     }
   )
-}
-
-// 后端返回 RFC3339(2026-09-12T18:14:06Z)→ 本地可读时间
-function fmtTime(s: string) {
-  if (!s) return "—"
-  const d = new Date(s)
-  if (Number.isNaN(d.getTime())) return s
-  const p = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
 // 时间范围。key 直接作为 GET /api/unlocks 的 range 参数,由后端按 created_at 过滤。
@@ -128,8 +119,7 @@ export default function UnlocksPage() {
   // 节点列表(ListNodes 已 Preload 该节点已解锁的平台)
   useEffect(() => {
     nodesApi.listAll()
-      .then((r) => {
-        const items = r.data.data.items
+      .then((items) => {
         setNodes(items)
         if (items.length > 0) setNodeId(String(items[0].id))
       })

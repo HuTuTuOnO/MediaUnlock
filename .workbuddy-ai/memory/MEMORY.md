@@ -1,5 +1,43 @@
 # MediaUnlock 项目长期笔记
 
+## 构建 / 发布 / 部署
+
+- `scripts/build.sh` —— **唯一的构建脚本**（原来的 `release.sh` 已合并进来，2026-09-15）：
+  前端 → 同步进 `server/internal/static/web` → 逐平台编译 Server + Agent，产物在 `dist/`（已 gitignore）。
+  开关：`PLATFORMS`（默认 `go env GOOS/GOARCH` = 本机）、`SKIP_WEB=1`、`SKIP_AGENT=1`
+  - `SKIP_WEB=1` 的语义是「**不重新构建前端，但照旧同步 `web/dist` 进嵌入目录**」，
+    `web/dist` 不存在时直接报错退出（2026-09-15 修正，之前是"完全跳过前端"→会嵌进上一次的残留）
+- **前端嵌入目录 = `server/internal/static/web/`**（2026-09-15 挪的，详见 `static.go` 注释）：
+  - 用 `//go:embed all:web` + `fs.Sub(embedded, "web")`。**不能写 `all:*` 或 `*`** ——
+    两种写法都会把 `static.go` 自己嵌进二进制（`*` 只排除 `.` / `_` 开头的文件，**不排除 `.go`**），
+    于是 `GET /static.go` 能读到 Go 源码
+  - **模式里也不能含 `..`**（`all:../web` 报 `invalid pattern syntax`，实测）→
+    embed 的可见范围只有**本包目录及其子目录**。所以 `static.go` 挪包，`web/` 必须跟着搬，
+    否则编不过（2026-09-15 用户问过"能不能放 handlers / router"，结论是建议保持现状）
+  - 目录里只有 `.gitkeep`（git 追踪，**embed 要求目标非空**）、内容被 gitignore
+  - 前端没构建时首页返回一个带构建指引的提示页（原来白页）
+  - 改这个目录要同步 5 处：`static.go`、`.gitignore`、`.dockerignore`、`scripts/build.sh`
+    （`EMBED_DIST` + 清理用 `find -mindepth 1 ! -name '.gitkeep'`）、`server.yml`、`server/Dockerfile`
+- `scripts/docker/docker-compose.yml` —— Server 单服务（2026-09-15 从根目录那个 0 字节空文件搬来并补全）。
+  **compose 以文件所在目录为项目目录**，所以里面所有路径都写成 `../..` 从 `scripts/docker/` 往仓库根找：
+  `context: ../..`（Dockerfile 要求构建上下文是仓库根）、`../../server/config.yml:/app/config.yml:ro`、
+  命名卷 `data:/app/data`。用法：`docker compose -f scripts/docker/docker-compose.yml up -d`
+- **workflow 不调用这两个脚本**（各自内联编译步骤）：agent 只编 agent 且要额外打 tar.gz；
+  server 的 Docker job 是在镜像内部编的
+- `server/Dockerfile` —— 多阶段（node 构建前端 → golang 编译 → alpine 运行）。
+  **构建上下文必须是仓库根目录**：`docker build -f server/Dockerfile .`
+- `.github/workflows/agent.yml` / `server.yml` —— 打 tag(`v*`)或手动触发；两个架构 linux/amd64+arm64；
+  server 额外推 ghcr.io 多架构镜像（镜像名要全小写，用 `${GITHUB_REPOSITORY_OWNER,,}` 转）
+- **web 的 TS 配置**：`tsconfig.app.json` **不要写 `baseUrl`** —— TS 6.0 起报 `TS5101` 废弃错误，
+  而且 `paths` 的映射值必须写成相对路径（`"@/*": ["./src/*"]`），否则报 `TS5090`。
+  项目的 TS 是 5.9.3，所以**构建一直是对的，只有编辑器（更新的 TS）会报**
+- `scripts/install.sh` / `media.sh` / `services/media*` —— 部署脚本（从 `StreamAgent` 项目搬来后改名）：
+  装到 `/opt/media`，二进制 `media-agent`，服务名 `media`，管理命令 `/usr/bin/media`
+  - **已对齐**：agent 的 workflow 在打 tag 时额外产出 `agent-v<版本>-linux-<arch>.tar.gz`
+    （包内可执行文件叫 `agent`）—— 正是 `install.sh` 下载的那个文件名
+  - **已对齐**：`scripts/extras/config.yml` 按本项目 schema 重写（`node|client`、`stack: default|4|6`、
+    必须带 `render`）；**实测用 `config.Load` 两种模式都起得来**
+
 ## soga routes.toml 格式（以用户的生产文件为准，2026-09-15 确认）
 
 需求文档 §4.3 的描述与外部资料（soga v2.13.4 实测博客）有冲突，**以用户实际在跑的
@@ -88,16 +126,44 @@ type="direct"
 
 ## 已知遗留
 
-- `internal/detect/detect_test.go` 调 `items()`，`detect.go` 里叫 `allItems()` → 该测试编译不过，
-  导致 `go test ./...` FAIL（`go build ./...` 正常）。2026-09-15 发现时未修。
 - `internal/node` 的 `ensureProxy` 重启判定只看 `Type / Port / Value1 / Value2` 四个字段
   （`alias` 改名、`host`、`Value3~6` 改了都不重启）—— 这是有意的，别当成 bug 改
-- **ctx 被取消时会产出"垃圾结果"**（2026-09-15 审查发现，未修）：`detect.All(ctx)` 在 ctx 已取消时
-  给**每一项**都返回 `StatusNetworkErr`，于是
-  ① `node.Tick` 拿"全失败"的结果上报 → 服务端 `handlers/agent.go:108` 整体替换 `node_platforms`
-     → **该节点的解锁关联被清空**（外加 163 条 "context canceled" 历史噪音）
-  ② `client.Run` 的"本机已解锁"集合为空 → **写出一份把所有平台都分流出去的配置**
-  触发条件：SIGTERM 时正好有一轮在跑。修法：检测跑完若 `ctx.Err() != nil` 就放弃本轮（不上报 / 不写文件）
-- `agent/go.mod` 里 `golang.org/x/net` 被列为**直接**依赖，但全仓没人 import 它
-  （`go mod tidy` 会把它挪到 indirect 块）
 - `api.UnlockedNode.UploadAt` 是死字段：服务端下发 `upload_at`，agent 解析进字段但全仓没人读
+- 2026-09-15 审查发现、**用户暂未要求修**的小问题：
+  - `node.Runner` 退出时不 `Close()` 代理服务（进程退出由 OS 释放监听，无害）
+  - `api.Client` 不接收 `ctx`（关停时在途 HTTP 请求不会被取消，靠 30s 超时兜底）
+  - `client.probeNode` **串行**测速：节点多且有不通的时最坏 `节点数 × 3s`（要不要并发，用户还没定）
+- **server 也有 `-version` 了**（2026-09-15 补的，与 agent 一致）：`var version = "dev"` 在
+  `cmd/server/main.go`。在此之前 `build.sh` 的 `-X main.version=...` 对 server 是**空操作** ——
+  **链接器对不存在的符号静默忽略、不报错**（这点已实测，别再靠"没报错"判断注入成功）
+- **部署脚本传的 flag 必须和 agent 一致：是 `-config`，不是 `-c`** ——
+  `scripts/services/media`（openrc）与 `media.service`（systemd）已改对
+- workflow 的 tag 语义：**`latest` 只在打 tag 时生成**（`docker/metadata-action` 的
+  `type=raw,value=latest,enable=${{ startsWith(github.ref,'refs/tags/') }}`）；
+  两个 workflow 的 release job 会同时跑，`gh release create` 加了 `|| true` 容忍竞态
+- `server.yml` 的 docker job 有 `needs: build` 了（2026-09-15 补，`go test` 没过不再推镜像）
+- **docker 构建/运行已实跑通过**（2026-09-15，`server/Dockerfile` 第一次真验）：
+  - **沙箱坑**：`docker compose build` 在本机沙箱里必失败（buildx 要写 `~/.docker/buildx/*`）。
+    `dangerouslyDisableSandbox` **没生效**；可行绕法是 **`BUILDX_CONFIG=/tmp/buildxcfg docker compose ...`**
+  - 端到端：容器起来 → 日志有初始管理员随机密码 → `/app/data/database.db` 落在命名卷里 →
+    `/`、`/favicon.png`、`/assets/*`、`/api/*` 全部正确；**`/static.go` 返回 index.html（SPA 回退），
+    不泄漏源码**；`POST /api/auth/login` 拿到 JWT
+  - **容器里 Gin 跑的是 debug 模式**（Dockerfile 没设 `GIN_MODE=release`）—— 未改，只是记录
+- **ghcr 上目前还没有任何镜像**（2026-09-15 核实）：远端 `origin/main` 只有 `ae17afa first commit`、
+  与本地 HEAD 一致 → `.github/` 等**全都还没提交**，workflow **从未上过 GitHub**；
+  `git tag` 为空（`latest` 只在打 tag 时生成）。**仓库是私有的** → ghcr 包默认继承私有可见性，
+  推上去也要 `docker login` 才能拉，**不能匿名 pull**（要匿名得去包设置里改 public）
+  - compose 同时写 `image` + `build` 时，**`up` 走本地 build、不会 pull**（实测）；
+    想用线上镜像要显式 `docker compose pull`，或去掉 `build` / 设 `pull_policy: always`
+- 需求文档与代码有多处不一致（用户说过先不动文档）—— 清单见 2026-09-15 的日志
+- **第三轮审查的 14 条问题已修完**（2026-09-15，用户拍板后动手）。三个"最容易踩"的结论现在变成了
+  约束，改相关代码时必须遵守：
+  ① **`//go:embed` 不能用 `all:*` 或 `*`** —— 都会把 `.go` 自己嵌进去（`*` 只排除 `.` / `_` 开头的），
+     所以前端嵌在 `server/internal/static/web/`、写法是 `all:web` + `fs.Sub`
+  ② **嵌入目录要能在"前端没构建"时正确降级**：`fs.Stat` 查不到 `index.html` 就返回提示页，
+     不能再往里放 vite 产物（那会被 gitignore，新 clone 直接白页）
+  ③ **`SKIP_WEB=1` = 跳过构建但照常同步**，不是"整个跳过前端"
+- **用户明确不做的两件事（别再提）**：登录限流（**不加**）、`bestAlias` 反向依赖 `outType`（**保持现状**）
+- 改密码不吊销已有 JWT（无状态 token，前端"请重新登录"只清 localStorage）
+- **server 侧业务逻辑至今未发现 bug**：router 接口清单与需求文档 §3.2 完全对得上
+

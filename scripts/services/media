@@ -1,0 +1,36 @@
+#!/sbin/openrc-run
+
+description="MediaUnlock Service"
+supervisor="supervise-daemon"
+
+command="/opt/media/media-agent"
+command_args="-config /opt/media/config.yml"
+command_user="root:root"
+directory="/opt/media"
+
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/${RC_SVCNAME}.log"
+error_log="/var/log/${RC_SVCNAME}.log"
+
+respawn_delay=5
+respawn_max=0
+
+depend() {
+    need net
+    after firewall
+}
+
+start_pre() {
+    checkpath -d -m 0755 /run
+    checkpath -d -m 0755 /var/log
+
+    if [ ! -x "${command}" ]; then
+        eerror "${command} 不存在或不可执行"
+        return 1
+    fi
+
+    if [ ! -f /opt/media/config.yml ]; then
+        eerror "/opt/media/config.yml 不存在"
+        return 1
+    fi
+}

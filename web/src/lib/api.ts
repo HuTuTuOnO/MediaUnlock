@@ -61,7 +61,7 @@ function adaptPage<T>(
   page: number
 ): AxiosResponse<ApiResponse<PaginatedData<T>>> {
   const d = res.data.data
-  // 后端 limit < 0(回 -1)表示"未限制":不计算 pages,直接当 1 页
+  // 后端 limit 收敛在 1..500(见 server utils.MaxPageLimit);拿不到就按 1 算,避免下面除零
   const limit = d?.limit ?? 1
   const total = d?.total ?? 0
   const adapted = res as unknown as AxiosResponse<ApiResponse<PaginatedData<T>>>
@@ -160,12 +160,20 @@ export const nodesApi = {
     })
     return adaptPage(res, page)
   },
-  get: (id: number) => api.get<ApiResponse<Node>>(`/nodes/${id}`),
-  listAll: async () => {
-    const res = await api.get<ApiResponse<RawPaged<Node>>>("/nodes", {
-      params: { limit: 500, offset: 0 },
-    })
-    return adaptPage(res, 1)
+  // 拉全量:后端单页上限 500(utils.MaxPageLimit),超了要接着翻页 —— 只拉一页会静默少数据
+  listAll: async (): Promise<Node[]> => {
+    const out: Node[] = []
+    for (;;) {
+      const res = await api.get<ApiResponse<RawPaged<Node>>>("/nodes", {
+        params: { limit: 500, offset: out.length },
+      })
+      const d = res.data.data
+      const batch = d?.items ?? []
+      if (batch.length === 0) break
+      out.push(...batch)
+      if (out.length >= (d?.total ?? 0)) break
+    }
+    return out
   },
   create: (data: Partial<Node>) =>
     api.post<ApiResponse<{ node: Node; token: string }>>("/nodes", data),
@@ -186,13 +194,6 @@ export const platformsApi = {
     })
     return adaptPage(res, page)
   },
-  listAll: async () => {
-    const res = await api.get<ApiResponse<RawPaged<Platform>>>("/platforms", {
-      params: { limit: 1000, offset: 0 },
-    })
-    return adaptPage(res, 1)
-  },
-  get: (id: number) => api.get<ApiResponse<Platform>>(`/platforms/${id}`),
   create: (data: Partial<Platform>) =>
     api.post<ApiResponse<Platform>>("/platforms", data),
   update: (id: number, data: Partial<Platform>) =>

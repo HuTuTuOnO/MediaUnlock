@@ -1,0 +1,20 @@
+# 镜像构建上下文 = 仓库根目录(见 server/Dockerfile),这里排掉不需要进上下文的东西。
+.git
+.github
+.workbuddy-ai
+**/node_modules
+**/.DS_Store
+
+# 前端构建产物:镜像内会自己 npm run build,不用带进去
+web/dist
+
+# 本地构建产物 / 数据 / 配置
+dist
+server/server
+agent/agent
+server/data
+server/config.yml
+agent/config.yml
+
+# 嵌入目录里的前端产物(镜像内会用新构建的覆盖)
+server/internal/static/web

@@ -9,6 +9,7 @@ package client
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -101,6 +102,10 @@ func writeFile(path string, b []byte) error {
 	mode := os.FileMode(0o644)
 	if fi, err := os.Stat(path); err == nil {
 		mode = fi.Mode().Perm()
+	}
+	// 目标目录可能还不存在(如 /etc/soga),临时文件也写在同一目录里
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
 	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, b, mode); err != nil {

@@ -37,13 +37,48 @@ npm run dev
 ./scripts/build.sh
 ```
 
-脚本先构建 `web/dist`，再同步到 `server/internal/static`，最后将前端资源嵌入 Server 二进制。产物是 `server/server` 单个文件，直接托管前端，不需要单独部署。
+脚本会构建前端 `web/dist` → 同步进 `server/internal/static/web` → 编译 **Server（内嵌前端）与 Agent**。
+产物在 `dist/`：
 
-已经构建过前端、只想重编后端时：
+```
+dist/server_<os>_<arch>   # 单文件，直接托管前端，不需要单独部署
+dist/agent_<os>_<arch>    # 部署到各节点
+```
+
+常用参数：
 
 ```bash
-SKIP_WEB=1 ./scripts/build.sh
+PLATFORMS="linux/amd64 linux/arm64" ./scripts/build.sh  # 交叉编译（默认编本机平台）
+SKIP_WEB=1 ./scripts/build.sh                           # 前端不重新构建，直接用现有 web/dist
+SKIP_AGENT=1 ./scripts/build.sh                         # 只编 Server
 ```
+
+`server/internal/static/web/` 里的内容是构建产物，被 git 忽略（只保留一个 `.gitkeep` 占位）。
+新 clone 后直接 `go run ./cmd/server`，前端还没构建，首页会返回一个带构建指引的提示页。
+
+发布也可以直接走 GitHub Actions：打 `v*` tag 会自动编两个架构并附到 Release，
+Server 还会推一份多架构镜像到 ghcr.io（`.github/workflows/`）。
+
+## Docker
+
+Server 镜像（多阶段：构建前端 → 编译内嵌前端的 Server）。
+
+```bash
+cp server/config.example.yml server/config.yml   # 首次：改 jwt.secret
+docker compose -f scripts/docker/docker-compose.yml up -d
+```
+
+`docker-compose.yml` 以自身所在目录为工作目录，所以里面的相对路径都是从这个文件往上找仓库根目录
+（构建上下文必须是仓库根目录，`server/Dockerfile` 要同时拿到 `web/` 和 `server/`）。
+它把 `server/config.yml` 只读挂进容器、用命名卷 `mediaunlock_data` 存 `/app/data`（SQLite）。
+初始管理员的随机密码在容器日志里：
+
+```bash
+docker compose -f scripts/docker/docker-compose.yml logs server
+```
+
+不想用 compose 就直接 `docker build -f server/Dockerfile -t mediaunlock-server .`，
+运行参数见 `server/Dockerfile` 顶部注释。
 
 ## 测试
 

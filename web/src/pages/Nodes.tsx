@@ -18,7 +18,7 @@ import {
   DialogHeader, DialogTitle
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/toast-context"
-import { cn } from "@/lib/utils"
+import { cn, fmtTime } from "@/lib/utils"
 
 // 节点类型只支持 socks5 / http —— 与 Server 端 models 常量、agent 的 GOST handler 一一对应。
 // (曾出现过 ss / trojan 选项,但 agent 侧没有对应实现,选了也起不来,已移除。)
@@ -290,7 +290,7 @@ export default function NodesPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {node.report_at || "—"}
+                    {fmtTime(node.report_at)}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">

@@ -1,0 +1,19 @@
+# Agent 配置(安装脚本会放到 /opt/media/config.yml)。改完用 media restart 生效。
+# 字段说明见仓库 需求文档.md 4.4。
+
+# ============ client 模式(落地节点)============
+api: https://example.com
+mode: client
+token: 00000000-0000-0000-0000-000000000000   # 全局只读 Token(后台「系统配置」里那个)
+scheduler: "0 30 */3 * * *"                   # cron(6 段含秒),此例=每 3 小时的第 30 分
+stack: default                                # 生成配置的协议栈:default | 4 | 6
+render:                                       # 生成配置文件的目标
+  type: soga                                  # 当前仅 soga
+  path: /etc/soga/routes.toml
+
+# ============ node 模式(解锁节点)============
+# 用 node 模式时:把上面 client 那几行注释掉,换成下面这几行。
+# api: https://example.com
+# mode: node
+# token: xxxxxxxx                             # 节点专属 Token(节点表里那个)
+# scheduler: "0 45 * * * *"

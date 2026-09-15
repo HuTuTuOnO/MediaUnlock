@@ -1,0 +1,27 @@
+# Server 单服务部署。用法(在仓库根目录执行):
+#
+#   cp server/config.example.yml server/config.yml   # 首次:改 jwt.secret
+#   docker compose -f scripts/docker/docker-compose.yml up -d
+#
+# compose 以本文件所在目录为工作目录,下面的相对路径都是从这里往上找仓库根目录。
+# 日志里的初始管理员随机密码:docker compose -f scripts/docker/docker-compose.yml logs server
+
+name: mediaunlock
+
+services:
+  server:
+    build:
+      context: ../..                    # Dockerfile 要求构建上下文是仓库根目录
+      dockerfile: server/Dockerfile
+    image: mediaunlock-server
+    container_name: mediaunlock
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # 配置只读挂入;database.path 保持默认的 ./data/database.db 才能对上下面的卷
+      - ../../server/config.yml:/app/config.yml:ro
+      - data:/app/data
+
+volumes:
+  data:

@@ -13,9 +13,9 @@ import (
 // 201 项 → 177 个唯一名 → 去掉 14 个 Func==nil 的地区占位 → 163。
 // (lists.go 里注释掉的 "Now TV" 不算;有效条目共 201 条)
 func TestAllItemsDedup(t *testing.T) {
-	list := items()
+	list := allItems()
 	if len(list) != 163 {
-		t.Fatalf("items() = %d 项, want 163", len(list))
+		t.Fatalf("allItems() = %d 项, want 163", len(list))
 	}
 	seen := make(map[string]bool, len(list))
 	for _, it := range list {

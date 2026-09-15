@@ -1,0 +1,77 @@
+name: agent
+
+# 打 tag(v*)自动跑;也可以在 Actions 页面手动 Run workflow。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # 打 tag 时把产物附到 Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: agent/go.mod
+          cache-dependency-path: agent/go.sum
+
+      - name: 测试
+        working-directory: agent
+        run: go test ./...
+
+      - name: 编译 linux/${{ matrix.arch }}
+        working-directory: agent
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p ../dist
+          V="$GITHUB_REF_NAME"                              # tag 名,或分支名
+          [[ "$GITHUB_REF_TYPE" != "tag" ]] && V="${GITHUB_SHA:0:12}"
+          go build -trimpath -ldflags="-s -w -X main.version=$V" \
+            -o ../dist/agent_linux_${{ matrix.arch }} ./cmd/agent
+
+      # install.sh 从 Release 下的是 agent-v<版本>-linux-<arch>.tar.gz,
+      # 包内可执行文件叫 agent(见 install.sh 里的 find -name agent)。
+      - name: 打包 tar.gz
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          mkdir -p /tmp/pkg && cp dist/agent_linux_${{ matrix.arch }} /tmp/pkg/agent
+          tar czf "dist/agent-v${V}-linux-${{ matrix.arch }}.tar.gz" -C /tmp/pkg agent
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-linux-${{ matrix.arch }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 附到 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # agent 与 server 两个 workflow 会同时跑,可能同时 create —— 有一边失败不算错
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --generate-notes \
+            || true
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber

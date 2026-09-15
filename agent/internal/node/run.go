@@ -53,6 +53,13 @@ func (r *Runner) Watch(ctx context.Context) {
 // Tick 执行一轮全平台检测并上报。
 func (r *Runner) Tick(ctx context.Context) error {
 	results := detect.All(ctx)
+	// ctx 已取消时每项都是"网络错误",拿这种结果上报会把本节点的解锁关联清空(服务端用本次
+	// status==1 的平台整体替换)。放弃本轮。
+	if ctx.Err() != nil {
+		slog.Warn("检测被取消,跳过本轮上报", "err", ctx.Err())
+		return nil
+	}
+
 	items := make([]api.ReportItem, 0, len(results))
 	unlocked := 0
 	for _, res := range results {

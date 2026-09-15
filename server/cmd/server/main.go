@@ -8,6 +8,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -17,9 +18,18 @@ import (
 	"server/internal/router"
 )
 
+// version 由构建时注入(-ldflags "-X main.version=...");本地直接 go build 就是 dev。
+var version = "dev"
+
 func main() {
 	cfgPath := flag.String("config", "config.yml", "path to config.yml")
+	showVersion := flag.Bool("version", false, "打印版本后退出")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
