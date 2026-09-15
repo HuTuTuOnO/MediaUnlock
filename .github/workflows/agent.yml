@@ -72,8 +72,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          # agent 与 server 两个 workflow 会同时跑,可能同时 create —— 有一边失败不算错
+          # 这个 workflow 是 Release 的唯一创建者(server 不再建),所以 create 失败就是真出错了,
+          # 不能吞掉 —— 之前用 `|| true` 兜着,结果 Release 停在草稿态没人发现
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --generate-notes \
-            || true
-          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+            || gh release create "$GITHUB_REF_NAME" --generate-notes
+          # 只传 tar.gz:裸二进制 install.sh 不用,它的内容就在 tar.gz 里面
+          gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz --clobber

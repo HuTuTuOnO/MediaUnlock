@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # Release
+  contents: read # 只读代码,checkout 用
   packages: write # 推 ghcr.io 镜像
 
 jobs:
@@ -43,6 +43,7 @@ jobs:
         working-directory: server
         run: go test ./...
 
+      # Server 只通过 ghcr 镜像分发,不再传 Release,所以这里编一遍只为验证交叉编译能过
       - name: 编译 linux/${{ matrix.arch }}
         working-directory: server
         env:
@@ -53,34 +54,6 @@ jobs:
           mkdir -p ../dist
           go build -trimpath -ldflags="-s -w" \
             -o ../dist/server_linux_${{ matrix.arch }} ./cmd/server
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: server-linux-${{ matrix.arch }}
-          path: dist/server_linux_${{ matrix.arch }}
-          if-no-files-found: error
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      # 这个 job 没有 checkout,工作目录里没有 .git,gh 认不出仓库,得用 GH_REPO 指路
-      - name: 附到 Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          # agent 与 server 两个 workflow 会同时跑,可能同时 create —— 有一边失败不算错
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
-            || gh release create "$GITHUB_REF_NAME" --generate-notes \
-            || true
-          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
 
   docker:
     # build 里的 go test 没过就不该推镜像,所以串在它后面
