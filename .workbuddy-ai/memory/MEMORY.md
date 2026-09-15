@@ -185,6 +185,25 @@ type="direct"
   取 `token`，再 `curl -H "Authorization: Bearer $REG" https://ghcr.io/v2/<owner>/<pkg>/tags/list`。
   不存在返回 `NAME_UNKNOWN`，存在返回 tag 列表
 - 多架构镜像**首跑没有 gha 缓存时很慢**（qemu 里跑 arm64 的 npm ci + go build），预算要放宽
+- **`server/Dockerfile` 必须用 `--platform=$BUILDPLATFORM` + 交叉编译**（2026-09-15 修，关键）：
+  多架构构建里 arm64 那个 `go build` 在 qemu 模拟下**十几分钟都出不来**（owner 亲自碰到并反馈）。
+  修法是让 web / build 两个阶段都跑在 `$BUILDPLATFORM` 上（它们只产出平台无关的东西：
+  前端资源 + `CGO_ENABLED=0` 的静态二进制），目标架构靠 `ARG TARGETOS TARGETARCH` 交叉编译。
+  **实测双架构各 17.6s**（本地 `docker buildx build --platform linux/amd64,linux/arm64
+  --output=type=cacheonly .`）；日志里 `[linux/arm64->amd64 build 7/7]` 就是"原生交叉"的标记。
+  只有最后的 `FROM alpine:3` 仍按目标平台走（装对应架构的 ca-certificates/tzdata），那点 qemu 开销无所谓
+  - **动多架构构建时别再往「用 arm64 runner」那条路走** —— 交叉编译就够了，不需要换 runner
+- **`v0.1.0` 的 Release 已建成**（2026-09-15，6 个产物）：`agent-v0.1.0-linux-{amd64,arm64}.tar.gz`
+  （install.sh 下载的就是这个名）、`agent_linux_*`、`server_linux_*`
+- **ghcr 镜像已推成功**（2026-09-15）：`ghcr.io/hututuono/mediaunlock-server` 有 `v0.1.0` 与
+  `latest` 两个 tag，多架构 manifest（amd64 + arm64）。CI 四个 job 全绿
+- **拉取受 `read:packages` 限制**（2026-09-15 实测）：`git credential fill` 拿到的 `gho_` token
+  能 `docker login ghcr.io` 成功，但 `docker pull` / `imagetools inspect` 一律 **403**；
+  匿名拉是 `unauthorized`（包私有，符合预期）。根因：`gh auth login` 的默认 scope 只有
+  `repo` / `read:org` / `gist` / `workflow`，**不含 `read:packages`**。
+  解法二选一：① 建带 `read:packages` 的 PAT 再 `docker login`；
+  ② 去 GitHub 把包可见性改 public（**安全决策，要 owner 自己定，别替他改**）。
+  本机**没有 `gh` CLI**，所以没法 `gh auth refresh -s read:packages`
 
 - 需求文档与代码有多处不一致（用户说过先不动文档）—— 清单见 2026-09-15 的日志
 - **第三轮审查的 14 条问题已修完**（2026-09-15，用户拍板后动手）。三个"最容易踩"的结论现在变成了
