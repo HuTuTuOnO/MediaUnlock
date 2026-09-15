@@ -61,23 +61,34 @@ Server 还会推一份多架构镜像到 ghcr.io（`.github/workflows/`）。
 
 ## Docker
 
-Server 镜像（多阶段：构建前端 → 编译内嵌前端的 Server）。
+`scripts/docker/docker-compose.yml` 直接用 ghcr 上发布的镜像：
 
 ```bash
 cp server/config.example.yml server/config.yml   # 首次：改 jwt.secret
+docker login ghcr.io                             # 包是私有的，要登录（PAT 带 read:packages）
 docker compose -f scripts/docker/docker-compose.yml up -d
 ```
 
-`docker-compose.yml` 以自身所在目录为工作目录，所以里面的相对路径都是从这个文件往上找仓库根目录
-（构建上下文必须是仓库根目录，`server/Dockerfile` 要同时拿到 `web/` 和 `server/`）。
-它把 `server/config.yml` 只读挂进容器、用命名卷 `mediaunlock_data` 存 `/app/data`（SQLite）。
+镜像由 `.github/workflows/server.yml` 在打 `v*` tag 时构建推送（多架构 amd64 + arm64）：
+`ghcr.io/hututuono/mediaunlock-server`，tag 名同 git tag，`latest` 只在打 tag 时更新、
+始终指向最近一次发布 —— 想固定版本就把 compose 里的 `:latest` 换成 `:v0.1.0`。
+
+仓库私有 → ghcr 上的包默认也私有，所以拉取前要 `docker login ghcr.io`；
+想在别的机器上免登录拉，去 GitHub 的包设置里把可见性改成 public。
+
+compose 把 `server/config.yml` 只读挂进容器、用命名卷存 `/app/data`（SQLite）。
 初始管理员的随机密码在容器日志里：
 
 ```bash
 docker compose -f scripts/docker/docker-compose.yml logs server
 ```
 
-不想用 compose 就直接 `docker build -f server/Dockerfile -t mediaunlock-server .`，
+想改代码后立刻验证，就直接构建本地镜像（CI 用的是同一个 Dockerfile）：
+
+```bash
+docker build -f server/Dockerfile -t mediaunlock-server .   # 上下文必须是仓库根目录
+```
+
 运行参数见 `server/Dockerfile` 顶部注释。
 
 ## 测试
