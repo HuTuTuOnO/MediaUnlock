@@ -1,16 +1,13 @@
 # Server 单服务部署,直接用 ghcr.io 上的镜像。用法(在仓库根目录执行):
 #
 #   cp server/config.example.yml server/config.yml   # 首次:改 jwt.secret
-#   docker login ghcr.io                              # 私有包要登录,见下
 #   docker compose -f scripts/docker/docker-compose.yml up -d
 #
 # 镜像由 .github/workflows/server.yml 在打 tag(v*)时构建并推到 ghcr。
 # latest 只在打 tag 时更新,始终指向最近一次发布;想固定版本就把它换成具体
 # tag(如 :v0.1.0)。
 #
-# 仓库是私有的,ghcr 上的包默认也私有 → 拉取前要 docker login ghcr.io
-# (PAT 至少带 read:packages)。想在别的机器上免登录拉,就去 GitHub 包的设置里
-# 把可见性改成 public。
+# 包是公开的,拉取不需要登录。
 #
 # compose 以本文件所在目录为工作目录,所以下面的相对路径都是从这儿往上找仓库根。
 # 日志里的初始管理员随机密码:docker compose -f scripts/docker/docker-compose.yml logs server
