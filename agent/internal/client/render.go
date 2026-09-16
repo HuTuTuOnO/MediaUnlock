@@ -32,7 +32,7 @@ func render(t, path string, a assignment) error {
 }
 
 // renderSoga 按节点归并平台(一个节点一个 [[routes]] 块),块内每个平台前插一行
-// "# 平台名" 便于人工核对;末尾一条 rules=["*"] 的 direct 兜底。
+// "# 平台名" 注释便于人工核对;末尾一条 rules=["*"] 的 direct 兜底。
 func renderSoga(a assignment) ([]byte, error) {
 	names := make([]string, 0, len(a.Platforms))
 	for name := range a.Platforms {
@@ -62,7 +62,8 @@ func renderSoga(a assignment) ([]byte, error) {
 		}
 		fmt.Fprintf(&b, "\n# 路由 %s\n[[routes]]\nrules=[\n", alias)
 		for _, name := range byAlias[alias] {
-			fmt.Fprintf(&b, "  %s,\n", strconv.Quote("# "+name))
+			// 不直接写 name:名字里若带控制字符,会把这一行注释撕开
+			fmt.Fprintf(&b, "  # %s\n", func(s string) string { q := strconv.Quote(s); return q[1 : len(q)-1] }(name))
 			for _, rule := range a.Platforms[name].Rules {
 				fmt.Fprintf(&b, "  %s,\n", strconv.Quote(rule))
 			}

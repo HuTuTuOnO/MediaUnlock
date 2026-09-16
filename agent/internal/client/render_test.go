@@ -61,9 +61,9 @@ func TestRenderSoga(t *testing.T) {
 # 路由 JPAK1
 [[routes]]
 rules=[
-  "# Disney+",
+  # Disney+
   "domain:disneyplus.com",
-  "# Netflix",
+  # Netflix
   "domain:netflix.com",
   "domain:netflix.net",
 ]
@@ -171,8 +171,8 @@ func TestRenderSogaIsValidTOML(t *testing.T) {
 	if !doc.Enable || len(doc.Routes) != 2 {
 		t.Fatalf("enable=%v routes=%d, want true / 2(1 条分流 + 1 条兜底)", doc.Enable, len(doc.Routes))
 	}
-	if rules := doc.Routes[0].Rules; len(rules) != 2 || rules[0] != `# X"Y` || rules[1] != `domain:a"b` {
-		t.Errorf("rules = %q", rules)
+	if rules := doc.Routes[0].Rules; len(rules) != 1 || rules[0] != `domain:a"b` {
+		t.Errorf("平台名成了注释,不该再占一个规则位: rules = %q", rules)
 	}
 	out := doc.Routes[0].Outs[0]
 	if out.Type != "socks" || out.Server != "1.2.3.4" || out.Port != 1080 {
