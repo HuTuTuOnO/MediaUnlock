@@ -12,16 +12,33 @@ import (
 	"agent/internal/api"
 )
 
-func TestOutType(t *testing.T) {
-	// soga 只认 "socks",写 socks5 会报 unknown out type
-	for nodeType, want := range map[string]string{"socks5": "socks", "http": "http"} {
-		got, err := outType(nodeType)
-		if err != nil || got != want {
-			t.Errorf("outType(%q) = %q, %v; want %q", nodeType, got, err, want)
-		}
+// 本版认不出的节点类型 → 出口退回 direct,不带 server,整份配置照样合法。
+func TestRenderSogaFallsBackToDirect(t *testing.T) {
+	got, err := renderSoga(assignment{
+		Platforms: map[string]platform{"X": {Rules: []string{"domain:x.com"}, Alias: "VM"}},
+		Nodes:     map[string]node{"VM": {UnlockedNode: api.UnlockedNode{Type: "vmess", Host: "1.2.3.4", Port: 1080}}},
+	})
+	if err != nil {
+		t.Fatalf("认不出的类型不该报错: %v", err)
 	}
-	if _, err := outType("vmess"); err == nil {
-		t.Error("未知类型应返回 error")
+
+	var doc struct {
+		Routes []struct {
+			Outs []struct {
+				Type   string `toml:"type"`
+				Server string `toml:"server"`
+			} `toml:"outs"`
+		} `toml:"routes"`
+	}
+	if err := toml.Unmarshal(got, &doc); err != nil {
+		t.Fatalf("生成的配置不是合法 TOML: %v\n%s", err, got)
+	}
+	if len(doc.Routes) != 2 {
+		t.Fatalf("routes = %d, want 2", len(doc.Routes))
+	}
+	out := doc.Routes[0].Outs[0]
+	if out.Type != "direct" || out.Server != "" {
+		t.Errorf("出口应为不带 server 的 direct: %+v", out)
 	}
 }
 

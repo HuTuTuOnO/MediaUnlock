@@ -148,20 +148,19 @@ func TestProbeNodeKeepsDomainOnDefaultStack(t *testing.T) {
 	}
 }
 
-// 取延迟最优的那个,并排除禁用的、类型生成不了出口的、以及探测失败的。
+// 取延迟最优的那个,并排除禁用的、以及不在探测结果里的。
 func TestAssignPlatformsPicksFastestAndSkips(t *testing.T) {
 	enabled, disabled := api.StatusEnabled, api.StatusDisabled
 	nodes := map[string]node{
 		"jp1": {UnlockedNode: api.UnlockedNode{Type: "socks5", Status: &enabled}, Delay: 30 * time.Millisecond},
 		"jp2": {UnlockedNode: api.UnlockedNode{Type: "socks5", Status: &enabled}, Delay: 10 * time.Millisecond},
 		"us1": {UnlockedNode: api.UnlockedNode{Type: "socks5", Status: &disabled}, Delay: time.Millisecond},
-		"bad": {UnlockedNode: api.UnlockedNode{Type: "vmess", Status: &enabled}, Delay: 2 * time.Millisecond},
 	}
 	platforms := map[string]api.UnlockedPlatform{
-		// us1 延迟最低、bad 次低,但一个被禁用、一个类型生成不了出口;ghost 不在探测结果里 → 取 jp2
-		"Hulu": {Aliases: []string{"jp1", "jp2", "us1", "bad", "ghost"}, Rules: []string{"domain:hulu.com"}, Status: &enabled},
+		// us1 延迟最低但被禁用、ghost 不在探测结果里 → 取 jp2
+		"Hulu": {Aliases: []string{"jp1", "jp2", "us1", "ghost"}, Rules: []string{"domain:hulu.com"}, Status: &enabled},
 		// 候选全是不能用的 → 整个平台跳过
-		"Max": {Aliases: []string{"us1", "bad", "ghost"}, Rules: []string{"domain:max.com"}, Status: &enabled},
+		"Max": {Aliases: []string{"us1", "ghost"}, Rules: []string{"domain:max.com"}, Status: &enabled},
 	}
 
 	got := assignPlatforms(nil, platforms, nodes)

@@ -180,9 +180,6 @@ func bestAlias(aliases []string, nodes map[string]node) (string, bool) {
 		if n.Status != nil && *n.Status == api.StatusDisabled {
 			continue
 		}
-		if _, err := outType(n.Type); err != nil {
-			continue
-		}
 		if best == "" || n.Delay < bestDelay {
 			best, bestDelay = alias, n.Delay
 		}

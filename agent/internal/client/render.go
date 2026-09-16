@@ -5,12 +5,15 @@ package client
 //
 // 手写文本而不用 toml 库序列化,是为了保住"一行一个规则"的排版 ——
 // 一个平台动辄几十条域名,挤成一行没法人工核对。
+//
+// 转义走 strconv.Quote:它对 BEL/VT 会写成 \a \v,TOML 不认这两个转义 —— 域名规则里不会出现。
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -27,22 +30,6 @@ func render(t, path string, a assignment) error {
 	}
 	return fmt.Errorf("不支持的 render.type %q", t)
 }
-
-// outType 节点 type → soga 出口 type。soga 只认 "socks",写成 "socks5" 会报 unknown out type。
-func outType(nodeType string) (string, error) {
-	switch nodeType {
-	case "socks5":
-		return "socks", nil
-	case "http":
-		return "http", nil
-	}
-	return "", fmt.Errorf("节点类型 %q 生成不了 soga 出口", nodeType)
-}
-
-// tomlEscaper 转义 TOML 基本字符串里的特殊字符。
-var tomlEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`, "\r", `\r`, "\t", `\t`)
-
-func tomlString(s string) string { return `"` + tomlEscaper.Replace(s) + `"` }
 
 // renderSoga 按节点归并平台(一个节点一个 [[routes]] 块),块内每个平台前插一行
 // "# 平台名" 便于人工核对;末尾一条 rules=["*"] 的 direct 兜底。
@@ -73,21 +60,30 @@ func renderSoga(a assignment) ([]byte, error) {
 		if !ok {
 			return nil, fmt.Errorf("平台引用的节点 %q 不在探测结果里", alias)
 		}
-		typ, err := outType(node.Type)
-		if err != nil {
-			return nil, err
-		}
 		fmt.Fprintf(&b, "\n# 路由 %s\n[[routes]]\nrules=[\n", alias)
 		for _, name := range byAlias[alias] {
-			fmt.Fprintf(&b, "  %s,\n", tomlString("# "+name))
+			fmt.Fprintf(&b, "  %s,\n", strconv.Quote("# "+name))
 			for _, rule := range a.Platforms[name].Rules {
-				fmt.Fprintf(&b, "  %s,\n", tomlString(rule))
+				fmt.Fprintf(&b, "  %s,\n", strconv.Quote(rule))
 			}
 		}
 		b.WriteString("]\n\n[[routes.Outs]]\n")
-		fmt.Fprintf(&b, "type=%s\nserver=%s\nport=%d\n", tomlString(typ), tomlString(node.Host), node.Port)
-		if node.Value1 != "" || node.Value2 != "" {
-			fmt.Fprintf(&b, "username=%s\npassword=%s\n", tomlString(node.Value1), tomlString(node.Value2))
+		// 出口写哪些键由节点类型决定,各协议字段集不同,不能共用一套
+		switch node.Type {
+		case "socks5":
+			// soga 只认 "socks",写成 "socks5" 会报 unknown out type
+			fmt.Fprintf(&b, "type=\"socks\"\nserver=%s\nport=%d\n", strconv.Quote(node.Host), node.Port)
+			if node.Value1 != "" || node.Value2 != "" {
+				fmt.Fprintf(&b, "username=%s\npassword=%s\n", strconv.Quote(node.Value1), strconv.Quote(node.Value2))
+			}
+		case "http":
+			fmt.Fprintf(&b, "type=\"http\"\nserver=%s\nport=%d\n", strconv.Quote(node.Host), node.Port)
+			if node.Value1 != "" || node.Value2 != "" {
+				fmt.Fprintf(&b, "username=%s\npassword=%s\n", strconv.Quote(node.Value1), strconv.Quote(node.Value2))
+			}
+		default:
+			// 本版认不出这个类型的出口字段集:该平台域名退回本地直连,不阻断整份配置
+			b.WriteString("type=\"direct\"\n")
 		}
 	}
 
