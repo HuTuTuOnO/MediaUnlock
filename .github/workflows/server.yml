@@ -11,7 +11,38 @@ permissions:
   packages: write # 推 ghcr.io 镜像
 
 jobs:
+  # 先比出 server/ 或 web/ 相对上一个 tag 动没动 —— web/dist 是要嵌进 server 二进制的,
+  # 所以只改前端也得重编。
+  #
+  # 不能用 on.push.paths 过滤:GitHub 明确说 paths 过滤对 tag push 不生效,
+  # 而本仓库是靠打 tag 发布的,只能自己比。
+  changed:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 要比历史 tag,浅克隆拿不到
+      - id: diff
+        run: |
+          # 手动触发不属于"某个 tag 发布",没有可比的上一个 tag,一律当有改动
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 首个 tag 时 describe 无输出 → 当有改动
+          PREV="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)"
+          if [[ -z "$PREV" ]] || ! git diff --quiet "$PREV" HEAD -- server web; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "server/ 与 web/ 相对 $PREV 都没改动,跳过"
+          fi
+
   build:
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -55,6 +86,7 @@ jobs:
           go build -trimpath -ldflags="-s -w" \
             -o ../dist/server_linux_${{ matrix.arch }} ./cmd/server
 
+  # needs 的 build 被跳过时这个 job 也会被跳过 —— 只改 agent 的 tag 不会推镜像
   docker:
     # build 里的 go test 没过就不该推镜像,所以串在它后面
     needs: build
