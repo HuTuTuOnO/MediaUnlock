@@ -96,6 +96,9 @@ func proxyConfig(n api.NodeInfo) (*gconfig.ServiceConfig, error) {
 	// 正是"以本机这个 IPv4 为源地址出网"的语义。
 	if ip := egressIPv4(); ip != "" {
 		cfg.Metadata = map[string]any{gparsing.MDKeyInterface: ip}
+		// 记下这次实际绑的出口:换网、代理软件改路由之后,这条日志是判断
+		// "代理到底从哪个 IP 出网"的唯一线索(节点是裸机,别处看不到)。
+		slog.Info("本机代理绑定出口 IPv4 出网", "ip", ip)
 	}
 	return cfg, nil
 }
