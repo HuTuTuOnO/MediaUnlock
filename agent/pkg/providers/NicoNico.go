@@ -20,5 +20,10 @@ func Niconico(c core.HttpClient) core.Result {
 	if strings.Contains(string(b), "同じ地域") {
 		return core.Result{Status: core.StatusNo}
 	}
+
+	// 新增 DOMESTIC_VIDEO 检测
+	if strings.Contains(string(b), "DOMESTIC_VIDEO") {
+		return core.Result{Status: core.StatusNo}
+	}
 	return core.Result{Status: core.StatusOK}
 }

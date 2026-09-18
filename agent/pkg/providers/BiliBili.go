@@ -64,21 +64,14 @@ func BilibiliAnime(c core.HttpClient) core.Result {
 	}
 
 	var testUrl string
+	// 修改为 仅支持 HK MO TW
 	switch region {
 	case "HK", "MO":
 		testUrl = "https://api.bilibili.com/pgc/player/web/playurl?avid=473502608&cid=845838026&qn=0&type=&otype=json&ep_id=678506&fourk=1&fnver=0&fnval=16&module=bangumi"
 	case "TW":
 		testUrl = "https://api.bilibili.com/pgc/player/web/playurl?avid=50762638&cid=100279344&qn=0&type=&otype=json&ep_id=268176&fourk=1&fnver=0&fnval=16&module=bangumi"
-	case "TH":
-		testUrl = "https://api.bilibili.tv/intl/gateway/web/playurl?s_locale=en_US&platform=web&ep_id=10077726"
-	case "ID":
-		testUrl = "https://api.bilibili.tv/intl/gateway/web/playurl?s_locale=en_US&platform=web&ep_id=11130043"
-	case "VN":
-		testUrl = "https://api.bilibili.tv/intl/gateway/web/playurl?s_locale=en_US&platform=web&ep_id=11405745"
-	case "MY", "SG", "PH", "BN", "KH", "LA", "MM", "TL":
-		testUrl = "https://api.bilibili.tv/intl/gateway/web/playurl?s_locale=en_US&platform=web&ep_id=347666"
 	default:
-		return core.Result{Status: core.StatusOK, Region: region}
+		return core.Result{Status: core.StatusNo, Region: region}
 	}
 
 	testRes := bilibili(c, testUrl)

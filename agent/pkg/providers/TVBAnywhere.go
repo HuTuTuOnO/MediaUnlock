@@ -22,7 +22,8 @@ func TVBAnywhere(c core.HttpClient) core.Result {
 	if err := json.Unmarshal(b, &res); err != nil {
 		return core.Result{Status: core.StatusErr, Err: err}
 	}
-	if res.Country == "HK" || res.AllowInThisCountry {
+	// 移除对 HK 的支持
+	if res.AllowInThisCountry {
 		return core.Result{Status: core.StatusOK, Region: strings.ToLower(res.Country)}
 	}
 	return core.Result{Status: core.StatusNo}
